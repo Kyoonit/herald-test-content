@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 41,
-  "updatedAt": "2026-10-09T09:11:51.360Z",
+  "sequence": 42,
+  "updatedAt": "2026-10-09T09:14:05.213Z",
   "news": [],
   "maintenances": [
     {
@@ -25,7 +25,8 @@
       "message": {
         "en": "Quick maintenance: back in about 30 minutes."
       },
-      "start": "2026-10-09T09:11:43.316Z"
+      "start": "2026-10-09T09:11:43.316Z",
+      "end": "2026-10-09T09:13:57.766Z"
     }
   ],
   "restart": {
