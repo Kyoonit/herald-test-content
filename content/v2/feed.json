@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 32,
-  "updatedAt": "2026-10-09T07:22:04.494Z",
+  "sequence": 33,
+  "updatedAt": "2026-10-09T07:28:00.705Z",
   "news": [
     {
       "id": "n-viexuj3xvwwk",
@@ -79,5 +79,7 @@
       }
     }
   ],
-  "vaultKeys": {}
+  "vaultKeys": {
+    "v-c145d4c1-0fd3-4dd0": "hsccUsYTWy4eFVx/IYUFPlyYGAAxgWjlYrtSLeibzdM="
+  }
 }
