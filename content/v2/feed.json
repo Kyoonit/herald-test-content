@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 38,
-  "updatedAt": "2026-10-09T08:44:24.330Z",
+  "sequence": 39,
+  "updatedAt": "2026-10-09T08:52:59.603Z",
   "news": [],
   "maintenances": [
     {
@@ -11,6 +11,13 @@
       },
       "start": "2026-10-09T08:43:39.336Z",
       "end": "2026-10-09T08:44:11.512Z"
+    },
+    {
+      "id": "m-1mft1t6ncu",
+      "message": {
+        "en": "The server crashed, we are on it. Back as soon as possible."
+      },
+      "start": "2026-10-09T08:52:51.804Z"
     }
   ],
   "restart": {
