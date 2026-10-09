@@ -1,20 +1,9 @@
 {
   "schema": 2,
-  "sequence": 35,
-  "updatedAt": "2026-10-09T08:32:43.863Z",
+  "sequence": 36,
+  "updatedAt": "2026-10-09T08:33:33.081Z",
   "news": [],
-  "maintenances": [
-    {
-      "id": "m-md3v72l8ee",
-      "message": {
-        "en": "Herald S6 test: big update (staging only)",
-        "fr": "Test Herald S6 : grosse mise à jour (staging uniquement)"
-      },
-      "announceFrom": "2026-10-09T08:31:35.211Z",
-      "start": "2026-10-10T16:00:00.000Z",
-      "end": "2026-10-10T18:00:00.000Z"
-    }
-  ],
+  "maintenances": [],
   "restart": {
     "rules": [
       {
@@ -24,16 +13,7 @@
         "durationMin": 5
       }
     ],
-    "exceptions": [
-      {
-        "date": "2026-10-09",
-        "timeZone": "Europe/Paris",
-        "extra": {
-          "time": "10:57",
-          "durationMin": 5
-        }
-      }
-    ]
+    "exceptions": []
   },
   "events": [],
   "banners": [],
