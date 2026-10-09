@@ -19973,7 +19973,7 @@ var EventV2Schema = EventSchema.and(
   })
 );
 var BannerSchema = external_exports.object({ id, text: LocalizedSchema, level: external_exports.enum(["info", "important", "critical"]), ...Window });
-var WelcomeSchema = external_exports.object({ id, title: LocalizedSchema.optional(), text: LocalizedSchema, ...Window });
+var WelcomeSchema = external_exports.object({ id, title: LocalizedSchema.optional(), accent: LocalizedSchema.optional(), text: LocalizedSchema, ...Window });
 var BackgroundSchema = external_exports.object({ id, name: LocalizedSchema, image: ContentFileSchema, mode: external_exports.enum(["add", "replace"]), ...Window });
 var VAULT_KINDS = ["news", "event", "banner", "welcome", "background", "maintenance", "restartRule", "restartException"];
 var VaultSchema = external_exports.object({
