@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 51,
-  "updatedAt": "2026-10-09T12:34:06.138Z",
+  "sequence": 52,
+  "updatedAt": "2026-10-09T12:34:21.526Z",
   "news": [],
   "maintenances": [
     {
@@ -136,9 +136,5 @@
       "en": "#support (Herald test)"
     }
   },
-  "discordAppId": "1557889951620931644",
-  "staffCode": {
-    "salt": "16075e9bb70187f35a7cb80175b3a180",
-    "hash": "d24d942c3d6f47efc763f6a1f75750a6ba8100eae23b22ffaa3e32ef183b02ab36898c97e3ab848aeed4cf61cebc7a6dcd0d8d9d23bcaf1d9b78ed8df264bbc9"
-  }
+  "discordAppId": "1557889951620931644"
 }
