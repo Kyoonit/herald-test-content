@@ -1,8 +1,69 @@
 {
   "schema": 2,
-  "sequence": 54,
-  "updatedAt": "2026-10-09T12:58:22.339Z",
-  "news": [],
+  "sequence": 55,
+  "updatedAt": "2026-10-09T20:58:54.042Z",
+  "news": [
+    {
+      "id": "n-dd6bf9e40009",
+      "date": "2026-10-08",
+      "category": "update",
+      "title": {
+        "en": "Welcome to the new Hemisphere Launcher",
+        "fr": "Bienvenue dans le nouveau launcher Hemisphere"
+      },
+      "body": {
+        "en": "One click and you're on Hemisphere: Minecraft, Fabric, Java and our performance mods are installed and kept up to date for you.\n\nPick your optional mods in the Mods tab, and use Settings → Installation → Repair if anything ever goes wrong.",
+        "fr": "Un clic et tu es sur Hemisphere : Minecraft, Fabric, Java et nos mods de performance sont installés et tenus à jour pour toi.\n\nChoisis tes mods optionnels dans l'onglet Mods, et utilise Paramètres → Installation → Réparer en cas de souci."
+      },
+      "link": {
+        "label": {
+          "en": "Join the Discord",
+          "fr": "Rejoindre le Discord"
+        },
+        "url": "https://discord.gg/m3FGGUF"
+      },
+      "showFrom": "2026-10-07T22:00:00.000Z",
+      "imageFile": {
+        "path": "v2/images/39fb1915cb272d19696e62abc3fa15ea0089d96eaf5f45b983bf0c6ee0404cb1.webp",
+        "sha512": "1d3a893742d9fbdf6c7e60acb7f8c26ff76744002c71b20165786429ca6ae23b230c5a8d7de9a8ab6e851c50b66d7a5476525f3705d64effade3c31d948d71c4",
+        "size": 161336
+      },
+      "featuredUntil": "2026-11-06T22:00:00.000Z"
+    },
+    {
+      "id": "n-9ff31740346b",
+      "date": "2026-10-08",
+      "category": "update",
+      "title": {
+        "en": "Client 1.0.1: Mod Menu recommended",
+        "fr": "Client 1.0.1 : Mod Menu recommandé"
+      },
+      "body": {
+        "en": "Mod Menu adds a Mods button in game with a searchable list of every installed mod and their settings.",
+        "fr": "Mod Menu ajoute un bouton Mods en jeu, avec la liste de tous les mods installés, une recherche et leurs réglages."
+      },
+      "showFrom": "2026-10-07T22:00:00.000Z"
+    },
+    {
+      "id": "n-34b58ec00b16",
+      "date": "2026-10-08",
+      "category": "server",
+      "title": {
+        "en": "Daily restart at 17:00 (Paris time)",
+        "fr": "Redémarrage quotidien à 17h00 (heure de Paris)"
+      },
+      "body": {
+        "en": "The server restarts every day for a few minutes. The launcher shows a countdown in your own time zone.",
+        "fr": "Le serveur redémarre chaque jour pendant quelques minutes. Le launcher affiche un compte à rebours dans ton fuseau horaire."
+      },
+      "showFrom": "2026-10-07T22:00:00.000Z",
+      "imageFile": {
+        "path": "v2/images/0ece2189a758ef8fd194d47a31e2fa025175a06cc745e8847b88ffc467e76cb7.webp",
+        "sha512": "90e024cb68f42bc641ff357b0f3006d455fa482ae7f3bdc3c4f8f7dd7fd274e85af6661a7cee8241e2b009b89aa9c6af6b12277e92f2cc3ba884075eb8811c8b",
+        "size": 29018
+      }
+    }
+  ],
   "maintenances": [
     {
       "id": "m-xb7nrwoj4x",
@@ -130,6 +191,28 @@
     }
   ],
   "vaultKeys": {},
+  "modPolicy": {
+    "rules": [
+      {
+        "project": "HbXXzLHU",
+        "name": "X to Xray",
+        "verdict": "blocked",
+        "reason": {
+          "en": "X-ray shows ores through walls: it is cheating on Hemisphere.",
+          "fr": "Le x-ray montre les minerais à travers les murs : c’est de la triche sur Hemisphere."
+        }
+      },
+      {
+        "project": "pHENEouD",
+        "name": "Xray -orevision",
+        "verdict": "blocked",
+        "reason": {
+          "en": "X-ray shows ores through walls: it is cheating on Hemisphere.",
+          "fr": "Le x-ray montre les minerais à travers les murs : c’est de la triche sur Hemisphere."
+        }
+      }
+    ]
+  },
   "support": {
     "url": "https://discord.com/channels/1/2",
     "howTo": {
