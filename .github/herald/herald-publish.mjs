@@ -6,7 +6,7 @@ var __export = (target, all) => {
 
 // tools/herald/publish-run.ts
 import { execFileSync } from "node:child_process";
-import { createHash as createHash2, createPrivateKey } from "node:crypto";
+import { createHash as createHash2, createPrivateKey, createPublicKey, verify } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
@@ -20310,7 +20310,21 @@ async function main() {
         }
       }
     }
-    const read = (path) => existsSync(join(repo, path)) ? readFileSync(join(repo, path)) : null;
+    const legacy = /* @__PURE__ */ new Map();
+    if (job.schema === 2 && !existsSync(join(repo, contentDir, "index.bin")) && !existsSync(join(repo, contentDir, "index.json"))) {
+      try {
+        const get = async (p) => Buffer.from(await (await fetch(CONTENT_BASE + p, { signal: AbortSignal.timeout(3e4) })).arrayBuffer());
+        const text = await get("index.json");
+        const sig = await get("index.json.sig");
+        if (verify(null, text, createPublicKey(key), Buffer.from(sig.toString("utf8").trim(), "base64"))) {
+          const index = ContentIndexSchema.parse(JSON.parse(text.toString("utf8")));
+          legacy.set(`${contentDir}/index.json`, text).set(`${contentDir}/index.json.sig`, sig);
+          for (const ref of [index.latest, index.previous].filter((r) => r !== null)) legacy.set(`${contentDir}/${ref.manifest}`, await get(ref.manifest));
+        }
+      } catch {
+      }
+    }
+    const read = (path) => existsSync(join(repo, path)) ? readFileSync(join(repo, path)) : legacy.get(path) ?? null;
     const release = await buildRelease(job, contentDir, key, /* @__PURE__ */ new Date(), read);
     for (const f of release.writes) {
       mkdirSync(dirname(join(repo, f.path)), { recursive: true });
