@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 46,
-  "updatedAt": "2026-10-09T11:52:52.994Z",
+  "sequence": 47,
+  "updatedAt": "2026-10-09T12:02:56.800Z",
   "news": [],
   "maintenances": [
     {
@@ -93,5 +93,7 @@
       "plainSha256": "97f6f6d6b950465338a8ae2686803f3fd6027e46a9a7a97883a8b015a7f93925"
     }
   ],
-  "vaultKeys": {}
+  "vaultKeys": {
+    "v-650fdffd-e788-4c3a": "9Zo2xJpJ3e0d2tyKTfx3W7ZtHbGM3P0c5rx/gIwMZHo="
+  }
 }
