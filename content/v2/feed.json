@@ -1,9 +1,17 @@
 {
   "schema": 2,
-  "sequence": 36,
-  "updatedAt": "2026-10-09T08:33:33.081Z",
+  "sequence": 37,
+  "updatedAt": "2026-10-09T08:43:51.376Z",
   "news": [],
-  "maintenances": [],
+  "maintenances": [
+    {
+      "id": "m-xb7nrwoj4x",
+      "message": {
+        "en": "qdertg"
+      },
+      "start": "2026-10-09T08:43:39.336Z"
+    }
+  ],
   "restart": {
     "rules": [
       {
