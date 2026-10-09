@@ -7,7 +7,8 @@ var __export = (target, all) => {
 // tools/herald/publish-run.ts
 import { execFileSync } from "node:child_process";
 import { createPrivateKey } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash as createHash2 } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 // tools/herald/publisher.ts
@@ -19922,8 +19923,16 @@ var sha5122 = external_exports.string().regex(/^[0-9a-f]{128}$/);
 var sha256 = external_exports.string().regex(/^[0-9a-f]{64}$/);
 var LANGS = external_exports.array(external_exports.string().regex(/^[a-z]{2}$/)).min(1).max(20);
 var Window = { showFrom: instant.optional(), showUntil: instant.optional() };
+var ContentFileSchema = external_exports.object({
+  path: external_exports.string().regex(/^v2\/(vaults|backgrounds|images)\/[a-z0-9-]{1,80}\.(bin|webp|avif|png|jpg)$/),
+  sha512: sha5122,
+  size: external_exports.number().int().positive().max(15 * 1024 * 1024)
+});
 var NewsItemV2Schema = NewsItemSchema.extend({
   ...Window,
+  /** Picture published next to the feed (Herald), instead of `image`: v2/images/… in clear, or locked with its vault
+   *  (v2/vaults/…-img.bin, listed as the vault's `image`); sha512 and size are the PLAIN picture's */
+  imageFile: ContentFileSchema.optional(),
   /** Big card at the top of News until then (overrides `featured`) */
   featuredUntil: instant.optional(),
   /** Only for players using one of these languages (default: everyone) */
@@ -19965,11 +19974,6 @@ var EventV2Schema = EventSchema.and(
 );
 var BannerSchema = external_exports.object({ id, text: LocalizedSchema, level: external_exports.enum(["info", "important", "critical"]), ...Window });
 var WelcomeSchema = external_exports.object({ id, title: LocalizedSchema.optional(), text: LocalizedSchema, ...Window });
-var ContentFileSchema = external_exports.object({
-  path: external_exports.string().regex(/^v2\/(vaults|backgrounds|images)\/[a-z0-9-]{1,80}\.(bin|webp|avif|png|jpg)$/),
-  sha512: sha5122,
-  size: external_exports.number().int().positive().max(15 * 1024 * 1024)
-});
 var BackgroundSchema = external_exports.object({ id, name: LocalizedSchema, image: ContentFileSchema, mode: external_exports.enum(["add", "replace"]), ...Window });
 var VAULT_KINDS = ["news", "event", "banner", "welcome", "background", "maintenance", "restartRule", "restartException"];
 var VaultSchema = external_exports.object({
@@ -19979,7 +19983,9 @@ var VaultSchema = external_exports.object({
   opensAt: instant,
   file: ContentFileSchema.refine((f) => f.path.startsWith("v2/vaults/") && f.path.endsWith(".bin"), "vault files live in v2/vaults/*.bin"),
   /** SHA-256 of the decrypted content: only the right key gives it */
-  plainSha256: sha256
+  plainSha256: sha256,
+  /** The item's picture, locked with the same key (downloaded in advance like the vault) */
+  image: ContentFileSchema.refine((f) => f.path.startsWith("v2/vaults/") && f.path.endsWith(".bin"), "vault files live in v2/vaults/*.bin").optional()
 });
 var FeedV2Schema = external_exports.object({
   schema: external_exports.literal(2),
@@ -20021,6 +20027,9 @@ var FeedV2Schema = external_exports.object({
 });
 
 // tools/herald/publisher.ts
+function listedFiles(feed) {
+  return [...feed.vaults.flatMap((v) => [v.file, ...v.image ? [v.image] : []]), ...feed.news.flatMap((n) => n.imageFile?.path.startsWith("v2/images/") ? [n.imageFile] : [])];
+}
 function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date()) {
   if (!/^[a-z0-9-]+$/.test(contentDir)) throw new Error(`bad content folder: ${contentDir}`);
   if (job.schema === 2) return buildV2(job, contentDir, key, now);
@@ -20039,13 +20048,16 @@ function buildV2(job, contentDir, key, now) {
     { path: `${contentDir}/${FEED_V2_PATH}`, bytes },
     { path: `${contentDir}/${FEED_V2_PATH}.sig`, bytes: Buffer.from(sign(null, bytes, key).toString("base64") + "\n") }
   ];
+  const listed = listedFiles(feed);
   for (const f of job.files ?? []) {
-    const listed = feed.vaults.find((v) => v.file.path === f.path);
-    const file2 = Buffer.from(f.b64, "base64");
+    const entry = listed.find((l) => l.path === f.path);
+    if (f.keep && entry && entry.sha512 === f.sha512) continue;
+    const file2 = Buffer.from(f.b64 ?? "", "base64");
     const sha = createHash("sha512").update(file2).digest("hex");
-    if (!listed || listed.file.sha512 !== sha || listed.file.size !== file2.length) throw new Error(`file ${f.path} is not listed in the feed as sent`);
+    if (!entry || entry.sha512 !== sha || entry.size !== file2.length) throw new Error(`file ${f.path} is not listed in the feed as sent`);
     out.push({ path: `${contentDir}/${f.path}`, bytes: file2 });
   }
+  for (const l of listed) if (!(job.files ?? []).some((f) => f.path === l.path)) throw new Error(`file ${l.path} is listed but missing from the job`);
   return out;
 }
 
@@ -20067,8 +20079,19 @@ async function main() {
   console.log(`Publishing ${job.id} as sequence ${job.sequence}`);
   try {
     const key = createPrivateKey({ key: Buffer.from(env("SIGNING_KEY"), "base64"), format: "der", type: "pkcs8" });
-    const files = buildRelease(job, contentDir, key);
     const repo = process.env.HERALD_REPO_DIR ?? process.cwd();
+    for (const f of job.files ?? []) {
+      if (f.b64 || !/^v2\/(vaults|images)\/[a-z0-9-]{1,80}\.(bin|webp)$/.test(f.path)) continue;
+      const local = join(repo, contentDir, f.path);
+      if (existsSync(local) && createHash2("sha512").update(readFileSync(local)).digest("hex") === f.sha512) {
+        f.keep = true;
+        continue;
+      }
+      const res = await fetch(`${server}/internal/file/${f.path}`, { signal: AbortSignal.timeout(6e4), headers: { authorization: `Bearer ${env("PUBLISHER_TOKEN")}` } });
+      if (!res.ok) throw new Error(`Herald server: file ${f.path}: HTTP ${res.status}`);
+      f.b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+    }
+    const files = buildRelease(job, contentDir, key);
     for (const f of files) {
       mkdirSync(dirname(join(repo, f.path)), { recursive: true });
       writeFileSync(join(repo, f.path), f.bytes);
