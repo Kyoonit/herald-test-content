@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "sequence": 9,
+  "updatedAt": "2026-10-09T05:26:40.991Z",
+  "maintenance": {
+    "active": false,
+    "message": {
+      "en": "Herald S2 test"
+    }
+  },
+  "restart": {
+    "time": "17:00",
+    "timeZone": "Europe/Paris",
+    "durationMin": 5
+  },
+  "news": [
+    {
+      "id": "herald-s2-test",
+      "date": "2026-10-09",
+      "category": "server",
+      "title": {
+        "en": "Herald test",
+        "fr": "Test Herald"
+      },
+      "body": {
+        "en": "Test content, never published to players."
+      }
+    }
+  ]
+}
