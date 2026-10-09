@@ -20028,7 +20028,11 @@ var FeedV2Schema = external_exports.object({
 
 // tools/herald/publisher.ts
 function listedFiles(feed) {
-  return [...feed.vaults.flatMap((v) => [v.file, ...v.image ? [v.image] : []]), ...feed.news.flatMap((n) => n.imageFile?.path.startsWith("v2/images/") ? [n.imageFile] : [])];
+  return [
+    ...feed.vaults.flatMap((v) => [v.file, ...v.image ? [v.image] : []]),
+    ...feed.news.flatMap((n) => n.imageFile?.path.startsWith("v2/images/") ? [n.imageFile] : []),
+    ...feed.backgrounds.flatMap((b) => b.image.path.startsWith("v2/images/") ? [b.image] : [])
+  ];
 }
 function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date()) {
   if (!/^[a-z0-9-]+$/.test(contentDir)) throw new Error(`bad content folder: ${contentDir}`);
