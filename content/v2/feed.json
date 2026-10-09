@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 37,
-  "updatedAt": "2026-10-09T08:43:51.376Z",
+  "sequence": 38,
+  "updatedAt": "2026-10-09T08:44:24.330Z",
   "news": [],
   "maintenances": [
     {
@@ -9,7 +9,8 @@
       "message": {
         "en": "qdertg"
       },
-      "start": "2026-10-09T08:43:39.336Z"
+      "start": "2026-10-09T08:43:39.336Z",
+      "end": "2026-10-09T08:44:11.512Z"
     }
   ],
   "restart": {
