@@ -11,7 +11,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 // tools/herald/publisher.ts
-import { sign } from "node:crypto";
+import { createHash, sign } from "node:crypto";
 
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};
@@ -2031,8 +2031,8 @@ function anchor(source) {
 }
 var date = /* @__PURE__ */ anchor(dateSource);
 function timeSource(args) {
-  const hhmm = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
-  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm}` : args.precision === 0 ? `${hhmm}:[0-5]\\d` : `${hhmm}:[0-5]\\d\\.\\d{${args.precision}}` : args.seconds ? `${hhmm}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm}(?::[0-5]\\d(?:\\.\\d+)?)?`;
+  const hhmm2 = `(?:[01]\\d|2[0-3]):[0-5]\\d`;
+  const regex = typeof args.precision === "number" ? args.precision === -1 ? `${hhmm2}` : args.precision === 0 ? `${hhmm2}:[0-5]\\d` : `${hhmm2}:[0-5]\\d\\.\\d{${args.precision}}` : args.seconds ? `${hhmm2}:[0-5]\\d(?:\\.\\d+)?` : `${hhmm2}(?::[0-5]\\d(?:\\.\\d+)?)?`;
   return regex;
 }
 function time(args) {
@@ -3592,15 +3592,15 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
     const syms = normalized.symbolKeys;
     const doc = new Doc(["payload", "ctx"], { shape, inst, memo: memo2, syms });
     const parseStr = (k) => `shape[${k}]._zod.run({ value: input[${k}], issues: [] }, ctx)`;
-    const prefixStr = (id, k) => `
-          let ${id}_ab = false;
-          for (let i = 0; i < ${id}.issues.length; i++) {
-            const iss = ${id}.issues[i];
+    const prefixStr = (id2, k) => `
+          let ${id2}_ab = false;
+          for (let i = 0; i < ${id2}.issues.length; i++) {
+            const iss = ${id2}.issues[i];
             iss.path = iss.path ? [${k}, ...iss.path] : [${k}];
             payload.issues.push(iss);
-            if (iss.continue !== true) ${id}_ab = true;
+            if (iss.continue !== true) ${id2}_ab = true;
           }
-          if (${id}_ab && ctx && ctx.abortEarly) {
+          if (${id2}_ab && ctx && ctx.abortEarly) {
             payload.value = newResult;
             return payload;
           }`;
@@ -3614,34 +3614,34 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
     for (const key of normalized.allKeys) {
       if (key === "__proto__")
         continue;
-      const id = ids[key];
+      const id2 = ids[key];
       const k = typeof key === "symbol" ? `syms[${syms.indexOf(key)}]` : esc(key);
       const isPresent = `${k} in input`;
       const schema = shape[key];
       const optin = schema?._zod?.optin;
       const isOptionalIn = optin !== void 0;
       const isOptionalOut = schema?._zod?.optout === "optional";
-      doc.write(`const ${id} = ${parseStr(k)};`);
+      doc.write(`const ${id2} = ${parseStr(k)};`);
       if (isOptionalIn && isOptionalOut) {
-        const assign = optin === "optional" ? `${id}_present` : `${id}.value !== undefined || ${id}_present`;
+        const assign = optin === "optional" ? `${id2}_present` : `${id2}.value !== undefined || ${id2}_present`;
         doc.write(`
-        const ${id}_present = ${isPresent};
-        if (!${id}.issues.length || ${id}_present) {
-          if (${id}.issues.length) {${prefixStr(id, k)}
+        const ${id2}_present = ${isPresent};
+        if (!${id2}.issues.length || ${id2}_present) {
+          if (${id2}.issues.length) {${prefixStr(id2, k)}
           }
 
           if (${assign}) {
-            newResult[${k}] = ${id}.value;
+            newResult[${k}] = ${id2}.value;
           }
         }
 
       `);
       } else if (!isOptionalIn) {
         doc.write(`
-        const ${id}_present = ${isPresent};
-        if (${id}.issues.length) {${prefixStr(id, k)}
+        const ${id2}_present = ${isPresent};
+        if (${id2}.issues.length) {${prefixStr(id2, k)}
         }
-        if (!${id}_present && !${id}.issues.length) {
+        if (!${id2}_present && !${id2}.issues.length) {
           payload.issues.push({
             code: "invalid_type",
             expected: "nonoptional",
@@ -3654,22 +3654,22 @@ var $ZodObjectJIT = /* @__PURE__ */ $constructor("$ZodObjectJIT", (inst, def) =>
           }
         }
 
-        if (${id}_present) {
-          newResult[${k}] = ${id}.value;
+        if (${id2}_present) {
+          newResult[${k}] = ${id2}.value;
         }
 
       `);
       } else {
         doc.write(`
-        if (${id}.issues.length) {${prefixStr(id, k)}
+        if (${id2}.issues.length) {${prefixStr(id2, k)}
         }
       `);
         if (optin === "defaulted") {
-          doc.write(`newResult[${k}] = ${id}.value;`);
+          doc.write(`newResult[${k}] = ${id2}.value;`);
         } else {
           doc.write(`
-        if (${id}.value !== undefined || ${isPresent}) {
-          newResult[${k}] = ${id}.value;
+        if (${id2}.value !== undefined || ${isPresent}) {
+          newResult[${k}] = ${id2}.value;
         }
       `);
         }
@@ -15687,26 +15687,26 @@ function extractDefs(ctx, schema) {
     return;
   const idToSchema = /* @__PURE__ */ new Map();
   for (const entry of ctx.seen.entries()) {
-    const id = ctx.metadataRegistry.get(entry[0])?.id;
-    if (id) {
-      const existing = idToSchema.get(id);
+    const id2 = ctx.metadataRegistry.get(entry[0])?.id;
+    if (id2) {
+      const existing = idToSchema.get(id2);
       if (existing && existing !== entry[0]) {
-        throw new Error(`Duplicate schema id "${id}" detected during JSON Schema conversion. Two different schemas cannot share the same id when converted together.`);
+        throw new Error(`Duplicate schema id "${id2}" detected during JSON Schema conversion. Two different schemas cannot share the same id when converted together.`);
       }
-      idToSchema.set(id, entry[0]);
+      idToSchema.set(id2, entry[0]);
     }
   }
   const makeURI = (entry) => {
     const defsSegment = ctx.target === "draft-2020-12" ? "$defs" : "definitions";
     if (ctx.external) {
       const externalId = ctx.external.registry.get(entry[0])?.id;
-      const uriGenerator = ctx.external.uri ?? ((id2) => id2);
+      const uriGenerator = ctx.external.uri ?? ((id3) => id3);
       if (externalId) {
         return { ref: uriGenerator(externalId) };
       }
-      const id = entry[1].defId ?? entry[1].schema.id ?? `schema${ctx.counter++}`;
-      entry[1].defId = id;
-      return { defId: id, ref: `${uriGenerator("__shared")}#/${defsSegment}/${encodeJSONPointerSegment(id)}` };
+      const id2 = entry[1].defId ?? entry[1].schema.id ?? `schema${ctx.counter++}`;
+      entry[1].defId = id2;
+      return { defId: id2, ref: `${uriGenerator("__shared")}#/${defsSegment}/${encodeJSONPointerSegment(id2)}` };
     }
     const uriPrefix = `#`;
     const defUriPrefix = `${uriPrefix}/${defsSegment}/`;
@@ -15754,8 +15754,8 @@ Set the \`cycles\` parameter to \`"ref"\` to resolve cyclical schemas with defs.
         continue;
       }
     }
-    const id = ctx.metadataRegistry.get(entry[0])?.id;
-    if (id) {
+    const id2 = ctx.metadataRegistry.get(entry[0])?.id;
+    if (id2) {
       extractToDef(entry);
       continue;
     }
@@ -15988,10 +15988,10 @@ function finalize(ctx, schema) {
   } else {
   }
   if (ctx.external?.uri) {
-    const id = ctx.external.registry.get(schema)?.id;
-    if (!id)
+    const id2 = ctx.external.registry.get(schema)?.id;
+    if (!id2)
       throw new Error("Schema is missing an `id` property");
-    result.$id = ctx.external.uri(id);
+    result.$id = ctx.external.uri(id2);
   }
   assignProps(result, root.defId ? root.schema : root.def ?? root.schema);
   const rootMetaId = ctx.metadataRegistry.get(schema)?.id;
@@ -16597,7 +16597,7 @@ function stringifyKeyNames(bySchema, json2, visited) {
   const values = json2.enum ?? (json2.const !== void 0 ? [json2.const] : void 0);
   if (!numericType && !values?.some((v) => typeof v === "number"))
     return json2;
-  const { minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf, format, id, ...rest } = json2;
+  const { minimum, maximum, exclusiveMinimum, exclusiveMaximum, multipleOf, format, id: id2, ...rest } = json2;
   if (rest.enum)
     rest.enum = rest.enum.map((v) => typeof v === "number" ? String(v) : v);
   else if (typeof rest.const === "number")
@@ -19905,9 +19905,125 @@ var FeedSchema = external_exports.object({
   }
 });
 
+// src/shared/feedV2.ts
+var FEED_V2_PATH = "v2/feed.json";
+var instant = external_exports.string().datetime({ offset: true });
+var id = external_exports.string().regex(/^[a-z0-9-]{1,64}$/);
+var hhmm = external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var timeZone = external_exports.string().min(1).max(64).refine((tz) => {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}, "unknown time zone");
+var sha5122 = external_exports.string().regex(/^[0-9a-f]{128}$/);
+var sha256 = external_exports.string().regex(/^[0-9a-f]{64}$/);
+var LANGS = external_exports.array(external_exports.string().regex(/^[a-z]{2}$/)).min(1).max(20);
+var Window = { showFrom: instant.optional(), showUntil: instant.optional() };
+var NewsItemV2Schema = NewsItemSchema.extend({
+  ...Window,
+  /** Big card at the top of News until then (overrides `featured`) */
+  featuredUntil: instant.optional(),
+  /** Only for players using one of these languages (default: everyone) */
+  langs: LANGS.optional()
+});
+var MaintenanceSchema = external_exports.object({
+  id,
+  message: LocalizedSchema,
+  /** Announced to players from then ("maintenance planned …"); default: only from `start` */
+  announceFrom: instant.optional(),
+  start: instant,
+  /** Expected end; without one it lasts until the staff ends it (a new feed with `end` set) */
+  end: instant.optional()
+});
+var RestartRuleSchema = external_exports.object({
+  /** In force from this instant (the newest rule already in force wins) */
+  from: instant,
+  time: hhmm,
+  timeZone,
+  durationMin: external_exports.number().int().min(1).max(120)
+});
+var RestartExceptionSchema = external_exports.object({
+  /** Day, in `timeZone` */
+  date: external_exports.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  timeZone,
+  /** no restart that day */
+  skip: external_exports.boolean().optional(),
+  /** an extra restart that day */
+  extra: external_exports.object({ time: hhmm, durationMin: external_exports.number().int().min(1).max(120) }).optional()
+});
+var EventV2Schema = EventSchema.and(
+  external_exports.object({
+    showFrom: instant.optional(),
+    /** Repeats every week on these days (0 = Sunday) at `time` in `timeZone`; `start`/`end` give the first one */
+    recurrence: external_exports.object({
+      weekly: external_exports.object({ days: external_exports.array(external_exports.number().int().min(0).max(6)).min(1).max(7), time: hhmm, timeZone, durationMin: external_exports.number().int().min(1).max(24 * 60), until: instant.optional() })
+    }).optional()
+  })
+);
+var BannerSchema = external_exports.object({ id, text: LocalizedSchema, level: external_exports.enum(["info", "important", "critical"]), ...Window });
+var WelcomeSchema = external_exports.object({ id, title: LocalizedSchema.optional(), text: LocalizedSchema, ...Window });
+var ContentFileSchema = external_exports.object({
+  path: external_exports.string().regex(/^v2\/(vaults|backgrounds|images)\/[a-z0-9-]{1,80}\.(bin|webp|avif|png|jpg)$/),
+  sha512: sha5122,
+  size: external_exports.number().int().positive().max(15 * 1024 * 1024)
+});
+var BackgroundSchema = external_exports.object({ id, name: LocalizedSchema, image: ContentFileSchema, mode: external_exports.enum(["add", "replace"]), ...Window });
+var VAULT_KINDS = ["news", "event", "banner", "welcome", "background", "maintenance", "restartRule", "restartException"];
+var VaultSchema = external_exports.object({
+  id,
+  kind: external_exports.enum(VAULT_KINDS),
+  /** When the key is given out (server clock) and the item may be shown */
+  opensAt: instant,
+  file: ContentFileSchema.refine((f) => f.path.startsWith("v2/vaults/") && f.path.endsWith(".bin"), "vault files live in v2/vaults/*.bin"),
+  /** SHA-256 of the decrypted content: only the right key gives it */
+  plainSha256: sha256
+});
+var FeedV2Schema = external_exports.object({
+  schema: external_exports.literal(2),
+  sequence: external_exports.number().int().positive(),
+  updatedAt: external_exports.string().datetime(),
+  news: external_exports.array(NewsItemV2Schema).max(100),
+  maintenances: external_exports.array(MaintenanceSchema).max(20),
+  restart: external_exports.object({ rules: external_exports.array(RestartRuleSchema).min(1).max(20), exceptions: external_exports.array(RestartExceptionSchema).max(60) }).nullable(),
+  events: external_exports.array(EventV2Schema).max(50),
+  banners: external_exports.array(BannerSchema).max(20),
+  welcome: external_exports.array(WelcomeSchema).max(20),
+  backgrounds: external_exports.array(BackgroundSchema).max(60),
+  vaults: external_exports.array(VaultSchema).max(200),
+  /** Keys of vaults already open (fallback when the Herald server can't be reached) */
+  vaultKeys: external_exports.record(id, external_exports.string().regex(/^[A-Za-z0-9+/]{43}=$/)),
+  modPolicy: ModPolicySchema.optional(),
+  // same rules as schema 1
+  support: FeedSchema.shape.support,
+  discordAppId: FeedSchema.shape.discordAppId,
+  staffCode: FeedSchema.shape.staffCode,
+  /** Signed move of the content (an official repository one day): launchers read from there next time */
+  contentBase: external_exports.string().regex(/^https:\/\/raw\.githubusercontent\.com\/[\w.-]+\/[\w.-]+\/[\w.-]+\/[\w./-]*\/$/).optional()
+}).superRefine((f, ctx) => {
+  const seen = /* @__PURE__ */ new Set();
+  const unique = (kind, ids) => {
+    for (const x of ids) {
+      if (seen.has(`${kind}:${x}`)) ctx.addIssue({ code: "custom", message: `duplicate ${kind} id ${x}` });
+      seen.add(`${kind}:${x}`);
+    }
+  };
+  unique("news", f.news.map((n) => n.id));
+  unique("maintenance", f.maintenances.map((m) => m.id));
+  unique("event", f.events.map((e) => e.id));
+  unique("banner", f.banners.map((b) => b.id));
+  unique("welcome", f.welcome.map((w) => w.id));
+  unique("background", f.backgrounds.map((b) => b.id));
+  unique("vault", f.vaults.map((v) => v.id));
+  for (const k of Object.keys(f.vaultKeys)) if (!seen.has(`vault:${k}`)) ctx.addIssue({ code: "custom", message: `key for unknown vault ${k}` });
+});
+
 // tools/herald/publisher.ts
 function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date()) {
   if (!/^[a-z0-9-]+$/.test(contentDir)) throw new Error(`bad content folder: ${contentDir}`);
+  if (job.schema === 2) return buildV2(job, contentDir, key, now);
   const feed = FeedSchema.parse({ ...job.feed, schema: 1, sequence: job.sequence, updatedAt: now.toISOString() });
   const bytes = Buffer.from(JSON.stringify(feed, null, 2) + "\n");
   return [
@@ -19916,6 +20032,22 @@ function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date()) {
   ];
 }
 var errorText = (err) => err && typeof err === "object" && "issues" in err && Array.isArray(err.issues) ? err.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join(" \xB7 ") : err instanceof Error ? err.message : String(err);
+function buildV2(job, contentDir, key, now) {
+  const feed = FeedV2Schema.parse({ ...job.feed, schema: 2, sequence: job.sequence, updatedAt: now.toISOString() });
+  const bytes = Buffer.from(JSON.stringify(feed, null, 2) + "\n");
+  const out = [
+    { path: `${contentDir}/${FEED_V2_PATH}`, bytes },
+    { path: `${contentDir}/${FEED_V2_PATH}.sig`, bytes: Buffer.from(sign(null, bytes, key).toString("base64") + "\n") }
+  ];
+  for (const f of job.files ?? []) {
+    const listed = feed.vaults.find((v) => v.file.path === f.path);
+    const file2 = Buffer.from(f.b64, "base64");
+    const sha = createHash("sha512").update(file2).digest("hex");
+    if (!listed || listed.file.sha512 !== sha || listed.file.size !== file2.length) throw new Error(`file ${f.path} is not listed in the feed as sent`);
+    out.push({ path: `${contentDir}/${f.path}`, bytes: file2 });
+  }
+  return out;
+}
 
 // tools/herald/publish-run.ts
 var env = (name) => {
