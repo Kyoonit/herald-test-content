@@ -19682,9 +19682,15 @@ function date4(params) {
   return _coercedDate(ZodDate, params);
 }
 
+// src/shared/herald.ts
+var HERALD_CONTENT_BASE = "https://raw.githubusercontent.com/Kyoonit/hemisphere-content/main/content/";
+var PULSE_MS = 2 * 6e4;
+
 // src/shared/manifest.ts
 var CONTENT_SCHEMA = 1;
 var CONTENT_BASE = "https://raw.githubusercontent.com/Kyoonit/Hemisphere-Launcher/main/content/";
+var HERALD_TEST_CONTENT_BASE = "https://raw.githubusercontent.com/Kyoonit/herald-test-content/main/content/";
+var PACK_BASES = [CONTENT_BASE, HERALD_CONTENT_BASE, HERALD_TEST_CONTENT_BASE];
 var ALLOWED_ROOTS = ["mods", "config", "resourcepacks", "shaderpacks"];
 var WINDOWS_RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
 function isSafeRelativePath(path) {
@@ -19695,7 +19701,7 @@ function isSafeRelativePath(path) {
   if (!ALLOWED_ROOTS.includes(parts[0]) || parts.length < 2) return false;
   return parts.every((p) => p !== "" && p !== "." && p !== ".." && !p.endsWith(".") && !p.endsWith(" ") && !WINDOWS_RESERVED.test(p));
 }
-function isAllowedDownloadUrl(url2, contentBase = CONTENT_BASE) {
+function isAllowedDownloadUrl(url2, contentBase = PACK_BASES) {
   let u;
   try {
     u = new URL(url2);
@@ -19704,7 +19710,7 @@ function isAllowedDownloadUrl(url2, contentBase = CONTENT_BASE) {
   }
   if (u.protocol !== "https:" || u.username || u.password || u.port) return false;
   if (u.hostname === "cdn.modrinth.com") return true;
-  return url2.startsWith(contentBase) && !u.pathname.includes("/../");
+  return (typeof contentBase === "string" ? [contentBase] : contentBase).some((b) => url2.startsWith(b)) && !u.pathname.includes("/../");
 }
 var sha512 = external_exports.string().regex(/^[0-9a-f]{128}$/, "sha512 must be 128 lowercase hex chars");
 var semver = external_exports.string().regex(/^\d+\.\d+\.\d+$/, "version must look like 1.2.3");
@@ -20026,7 +20032,39 @@ var FeedV2Schema = external_exports.object({
   for (const k of Object.keys(f.vaultKeys)) if (!seen.has(`vault:${k}`)) ctx.addIssue({ code: "custom", message: `key for unknown vault ${k}` });
 });
 
+// src/shared/heraldPack.ts
+var MODRINTH_API = "https://api.modrinth.com/v2";
+function modrinthGetter(userAgent, fetchImpl = fetch) {
+  return async (path) => {
+    for (let attempt = 1; ; attempt++) {
+      const res = await fetchImpl(`${MODRINTH_API}${path}`, { headers: { "User-Agent": userAgent }, signal: AbortSignal.timeout(2e4) });
+      if (res.ok) return await res.json();
+      if (res.status === 429 && attempt < 5) {
+        await new Promise((r) => setTimeout(r, 1e3 * attempt));
+        continue;
+      }
+      throw new Error(`Modrinth ${path.split("?")[0]}: HTTP ${res.status}`);
+    }
+  };
+}
+var SEMVER = /^\d+\.\d+\.\d+$/;
+function compareVersions(a, b) {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  for (let i = 0; i < 3; i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  return 0;
+}
+var PackBaseSchema = external_exports.object({
+  sequence: external_exports.number().int().nonnegative(),
+  clientVersion: external_exports.string().regex(SEMVER),
+  /** SHA-512 of the online manifest */
+  sha512: external_exports.string().regex(/^[0-9a-f]{128}$/)
+});
+var MAX_PACK_FILE = 1024 * 1024;
+var manifestBytesText = (m) => JSON.stringify(m, null, 2) + "\n";
+
 // tools/herald/publisher.ts
+var PackError = class extends Error {
+};
 function listedFiles(feed) {
   return [
     ...feed.vaults.flatMap((v) => [v.file, ...v.image ? [v.image] : []]),
@@ -20034,9 +20072,9 @@ function listedFiles(feed) {
     ...feed.backgrounds.flatMap((b) => b.image.path.startsWith("v2/images/") ? [b.image] : [])
   ];
 }
-function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date()) {
+function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date(), read = () => null) {
   if (!/^[a-z0-9-]+$/.test(contentDir)) throw new Error(`bad content folder: ${contentDir}`);
-  if (job.schema === 2) return buildV2(job, contentDir, key, now);
+  if (job.schema === 2) return [...buildV2(job, contentDir, key, now), ...job.pack ? buildPack(job.pack, contentDir, key, read, now) : []];
   const feed = FeedSchema.parse({ ...job.feed, schema: 1, sequence: job.sequence, updatedAt: now.toISOString() });
   const bytes = Buffer.from(JSON.stringify(feed, null, 2) + "\n");
   return [
@@ -20063,6 +20101,57 @@ function buildV2(job, contentDir, key, now) {
   }
   for (const l of listed) if (!(job.files ?? []).some((f) => f.path === l.path)) throw new Error(`file ${l.path} is listed but missing from the job`);
   return out;
+}
+var sha5123 = (b) => createHash("sha512").update(b).digest("hex");
+function buildPack(pack, contentDir, key, read, now) {
+  let manifest;
+  try {
+    manifest = ClientManifestSchema.parse(pack.manifest);
+  } catch (err) {
+    throw new PackError(`mod pack: ${errorText(err)}`);
+  }
+  const base = PackBaseSchema.parse(pack.basedOn);
+  const bytes = Buffer.from(manifestBytesText(manifest));
+  const rel = `clients/${manifest.clientVersion}/manifest.json`;
+  const indexRaw = read(`${contentDir}/index.json`);
+  const index = indexRaw ? ContentIndexSchema.parse(JSON.parse(indexRaw.toString("utf8"))) : null;
+  if (index && index.latest.sha512 === sha5123(bytes)) return [];
+  if (index && index.latest.sha512 !== base.sha512) throw new PackError(`mod pack: the online pack changed meanwhile (now ${index.latest.clientVersion}). Make the change again from it.`);
+  if (index && compareVersions(manifest.clientVersion, index.latest.clientVersion) <= 0) throw new PackError(`mod pack: ${manifest.clientVersion} is not newer than ${index.latest.clientVersion}`);
+  if (read(`${contentDir}/${rel}`)) throw new PackError(`mod pack: ${manifest.clientVersion} was already published once. Use a new version number.`);
+  const out = [{ path: `${contentDir}/${rel}`, bytes }];
+  for (const f of manifest.files) {
+    if (!f.url.endsWith(`/${contentDir}/clients/${manifest.clientVersion}/files/${f.path}`)) throw new PackError(`mod pack: ${f.path} has a wrong address`);
+    const file2 = Buffer.from(pack.fileBytes?.[f.sha512] ?? "", "base64");
+    if (sha5123(file2) !== f.sha512 || file2.length !== f.size) throw new PackError(`mod pack: ${f.path} does not match the pack`);
+    out.push({ path: `${contentDir}/clients/${manifest.clientVersion}/files/${f.path}`, bytes: file2 });
+  }
+  const latest = { clientVersion: manifest.clientVersion, minecraft: manifest.minecraft, manifest: rel, sha512: sha5123(bytes), size: bytes.length };
+  const next = ContentIndexSchema.parse({
+    schema: CONTENT_SCHEMA,
+    // never lower than the pack it replaces (launchers refuse an older index), even when it was read elsewhere
+    sequence: Math.max(index?.sequence ?? 0, base.sequence) + 1,
+    updatedAt: now.toISOString(),
+    latest,
+    previous: index ? index.latest.clientVersion !== latest.clientVersion ? index.latest : index.previous : null,
+    previousCanJoin: pack.previousCanJoin
+  });
+  const indexBytes = Buffer.from(JSON.stringify(next, null, 2) + "\n");
+  out.push({ path: `${contentDir}/index.json`, bytes: indexBytes }, { path: `${contentDir}/index.json.sig`, bytes: Buffer.from(sign(null, indexBytes, key).toString("base64") + "\n") });
+  return out;
+}
+function checkOnModrinth(manifest, versions) {
+  const m = ClientManifestSchema.parse(manifest);
+  const wrong = [];
+  for (const mod of m.mods) {
+    const src = mod.source?.modrinth;
+    const v = src && versions.find((x) => x.id === src.versionId);
+    const file2 = v?.files.find((f) => f.hashes.sha512 === mod.file.sha512);
+    if (!src || !v || v.project_id !== src.projectId) wrong.push(`${mod.name}: not on Modrinth`);
+    else if (!file2 || file2.url !== mod.file.url || file2.size !== mod.file.size) wrong.push(`${mod.name}: the file is not Modrinth's`);
+    else if (!v.game_versions.includes(m.minecraft) || !v.loaders.includes("fabric")) wrong.push(`${mod.name}: not made for Minecraft ${m.minecraft} (Fabric)`);
+  }
+  if (wrong.length) throw new PackError(`mod pack: ${wrong.join(" \xB7 ")}`);
 }
 
 // tools/herald/publish-run.ts
@@ -20095,7 +20184,22 @@ async function main() {
       if (!res.ok) throw new Error(`Herald server: file ${f.path}: HTTP ${res.status}`);
       f.b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
     }
-    const files = buildRelease(job, contentDir, key);
+    if (job.pack) {
+      const manifest = ClientManifestSchema.parse(job.pack.manifest);
+      const get = modrinthGetter("Kyoonit/Hemisphere-Launcher (Herald publisher)");
+      const ids = manifest.mods.flatMap((m) => m.source ? [m.source.modrinth.versionId] : []);
+      const versions = [];
+      for (let i = 0; i < ids.length; i += 50) versions.push(...await get(`/versions?ids=${encodeURIComponent(JSON.stringify(ids.slice(i, i + 50)))}`));
+      checkOnModrinth(manifest, versions);
+      job.pack.fileBytes = {};
+      for (const f of manifest.files) {
+        const res = await fetch(`${server}/internal/file/pack/${f.sha512.slice(0, 64)}.bin`, { signal: AbortSignal.timeout(6e4), headers: { authorization: `Bearer ${env("PUBLISHER_TOKEN")}` } });
+        if (!res.ok) throw new PackError(`mod pack: file ${f.path}: HTTP ${res.status}`);
+        job.pack.fileBytes[f.sha512] = Buffer.from(await res.arrayBuffer()).toString("base64");
+      }
+    }
+    const read = (path) => existsSync(join(repo, path)) ? readFileSync(join(repo, path)) : null;
+    const files = buildRelease(job, contentDir, key, /* @__PURE__ */ new Date(), read);
     for (const f of files) {
       mkdirSync(dirname(join(repo, f.path)), { recursive: true });
       writeFileSync(join(repo, f.path), f.bytes);
@@ -20106,7 +20210,7 @@ async function main() {
       git("config", "user.name", "Herald Publisher");
       git("config", "user.email", "herald-publisher@users.noreply.github.com");
       git("add", ...files.map((f) => f.path));
-      git("commit", "-q", "-m", `Herald: publish sequence ${job.sequence}`);
+      git("commit", "-q", "-m", `Herald: publish sequence ${job.sequence}${files.some((f) => f.path.endsWith("/index.json")) ? ` (mod pack ${ClientManifestSchema.parse(job.pack.manifest).clientVersion})` : ""}`);
       for (let attempt = 1; ; attempt++) {
         try {
           git("push", "-q", "origin", "HEAD");
@@ -20121,7 +20225,7 @@ async function main() {
     console.log(`Published sequence ${job.sequence} in ${commit}`);
   } catch (err) {
     console.error(`Refused: ${errorText(err)}`);
-    await call("/internal/failed", { id: job.id, error: errorText(err) });
+    await call("/internal/failed", { id: job.id, error: errorText(err), ...err instanceof PackError ? { part: "pack" } : {} });
     process.exitCode = 1;
   }
 }
