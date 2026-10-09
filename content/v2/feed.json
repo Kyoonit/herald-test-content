@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 39,
-  "updatedAt": "2026-10-09T08:52:59.603Z",
+  "sequence": 40,
+  "updatedAt": "2026-10-09T08:53:34.050Z",
   "news": [],
   "maintenances": [
     {
@@ -17,7 +17,8 @@
       "message": {
         "en": "The server crashed, we are on it. Back as soon as possible."
       },
-      "start": "2026-10-09T08:52:51.804Z"
+      "start": "2026-10-09T08:52:51.804Z",
+      "end": "2026-10-09T08:53:23.907Z"
     }
   ],
   "restart": {
