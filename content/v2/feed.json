@@ -1,29 +1,8 @@
 {
   "schema": 2,
-  "sequence": 33,
-  "updatedAt": "2026-10-09T07:28:00.705Z",
-  "news": [
-    {
-      "id": "n-viexuj3xvwwk",
-      "date": "2026-10-09",
-      "category": "update",
-      "title": {
-        "en": "Herald S5: a news with its picture",
-        "fr": "Herald S5 : une news avec son image"
-      },
-      "body": {
-        "en": "Written in Herald, published by GitHub Actions.\n\nThe picture is a file next to the feed, checked by SHA-512.",
-        "fr": "Écrite dans Herald, publiée par GitHub Actions."
-      },
-      "showFrom": "2026-10-09T07:21:54.388Z",
-      "imageFile": {
-        "path": "v2/images/9d8f064dc8da3ff82672d962021d2bac9d4d98d04cccb25d53c6659923e1a572.webp",
-        "sha512": "0f6173ebefb5e6edec6b3f558279667ada82de3aa94fceaafffd50bca5af0b36cae9597fe23a7d5c0ac13072f667cf549e62be6987a3f482089d08354faecc65",
-        "size": 331720
-      },
-      "featuredUntil": "2026-10-10T07:21:54.388Z"
-    }
-  ],
+  "sequence": 34,
+  "updatedAt": "2026-10-09T07:59:22.683Z",
+  "news": [],
   "maintenances": [],
   "restart": {
     "rules": [
@@ -37,49 +16,9 @@
     "exceptions": []
   },
   "events": [],
-  "banners": [
-    {
-      "id": "b-aonc9wfomzbz",
-      "text": {
-        "en": "Herald S5 test banner (staging only)",
-        "fr": "Bandeau de test Herald S5 (staging uniquement)"
-      },
-      "level": "important",
-      "showFrom": "2026-10-09T07:21:54.913Z"
-    }
-  ],
-  "welcome": [
-    {
-      "id": "w-du8lx0pcfjj8",
-      "title": {
-        "en": "Herald S5 welcome"
-      },
-      "text": {
-        "en": "A welcome message published from Herald (test content)."
-      },
-      "showFrom": "2026-10-09T07:21:55.415Z"
-    }
-  ],
+  "banners": [],
+  "welcome": [],
   "backgrounds": [],
-  "vaults": [
-    {
-      "id": "v-c145d4c1-0fd3-4dd0",
-      "kind": "news",
-      "opensAt": "2026-10-09T07:27:00.000Z",
-      "file": {
-        "path": "v2/vaults/v-c145d4c1-0fd3-4dd0.bin",
-        "sha512": "6d48bfc1e902e87ea762277bec1e417a76cfaaf7d3b0cd20112591cea4886069f50a25b269559aad1621f9f64e141f0c806c49a071a881f0efb508634abdc782",
-        "size": 497
-      },
-      "plainSha256": "9fd70a74a6bb1d6145470c56e69e6b357294c1f967279a61bebc97d06604a5e3",
-      "image": {
-        "path": "v2/vaults/v-c145d4c1-0fd3-4dd0-img.bin",
-        "sha512": "1c871454fb3a4b16a9e0a851880483dc9af058df63bd1ebc9694b72bd19fbded3be4c1d1e533245c28312f1955cef101554a1456d3671e7fb878816b24b9b6f7",
-        "size": 97342
-      }
-    }
-  ],
-  "vaultKeys": {
-    "v-c145d4c1-0fd3-4dd0": "hsccUsYTWy4eFVx/IYUFPlyYGAAxgWjlYrtSLeibzdM="
-  }
+  "vaults": [],
+  "vaultKeys": {}
 }
