@@ -6,10 +6,9 @@ var __export = (target, all) => {
 
 // tools/herald/publish-run.ts
 import { execFileSync } from "node:child_process";
-import { createPrivateKey } from "node:crypto";
-import { createHash as createHash2 } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { createHash as createHash2, createPrivateKey } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
 
 // tools/herald/publisher.ts
 import { createHash, sign } from "node:crypto";
@@ -19740,7 +19739,10 @@ var ModEntrySchema = external_exports.object({
 });
 var ExtraFileSchema = FileRefSchema.extend({
   /** enforced = always reset to this content; default = copied once, then the player owns it */
-  policy: external_exports.enum(["enforced", "default"])
+  policy: external_exports.enum(["enforced", "default"]),
+  /** Stored sealed (Herald): `url` gives the sealed bytes (their SHA-512 and size here), opened with `key`;
+   *  sha512 and size above are the PLAIN file's */
+  seal: external_exports.object({ key: external_exports.string().regex(/^[A-Za-z0-9+/]{43}=$/), sha512, size: external_exports.number().int().positive().max(16 * 1024 * 1024) }).optional()
 }).refine((f) => !f.path.startsWith("mods/"), 'mods go in "mods", not "files"');
 var ClientManifestSchema = external_exports.object({
   schema: external_exports.literal(CONTENT_SCHEMA),
@@ -19913,7 +19915,7 @@ var FeedSchema = external_exports.object({
 });
 
 // src/shared/feedV2.ts
-var FEED_V2_PATH = "v2/feed.json";
+var FEED_V2_SEALED_PATH = "v2/feed.bin";
 var instant = external_exports.string().datetime({ offset: true });
 var id = external_exports.string().regex(/^[a-z0-9-]{1,64}$/);
 var hhmm = external_exports.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -19929,10 +19931,12 @@ var sha5122 = external_exports.string().regex(/^[0-9a-f]{128}$/);
 var sha256 = external_exports.string().regex(/^[0-9a-f]{64}$/);
 var LANGS = external_exports.array(external_exports.string().regex(/^[a-z]{2}$/)).min(1).max(20);
 var Window = { showFrom: instant.optional(), showUntil: instant.optional() };
+var SealInfoSchema = external_exports.object({ key: external_exports.string().regex(/^[A-Za-z0-9+/]{43}=$/), sha512: sha5122, size: external_exports.number().int().positive().max(16 * 1024 * 1024) });
 var ContentFileSchema = external_exports.object({
   path: external_exports.string().regex(/^v2\/(vaults|backgrounds|images)\/[a-z0-9-]{1,80}\.(bin|webp|avif|png|jpg)$/),
   sha512: sha5122,
-  size: external_exports.number().int().positive().max(15 * 1024 * 1024)
+  size: external_exports.number().int().positive().max(15 * 1024 * 1024),
+  seal: SealInfoSchema.optional()
 });
 var NewsItemV2Schema = NewsItemSchema.extend({
   ...Window,
@@ -20062,83 +20066,180 @@ var PackBaseSchema = external_exports.object({
 var MAX_PACK_FILE = 1024 * 1024;
 var manifestBytesText = (m) => JSON.stringify(m, null, 2) + "\n";
 
+// src/shared/sealed.ts
+var MAGIC = [72, 77, 83, 49];
+var KEY_ID = /^[a-z0-9-]{1,64}$/;
+var subtle = () => crypto.subtle;
+var aes = (raw, use) => subtle().importKey("raw", raw, "AES-GCM", false, [use]);
+var toB64 = (b) => btoa(String.fromCharCode(...b));
+var fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function seal(payload, key, keyId, padTo = 4096, iv = crypto.getRandomValues(new Uint8Array(12))) {
+  if (!KEY_ID.test(keyId)) throw new Error("bad key id");
+  if (key.length !== 32 || iv.length !== 12) throw new Error("bad key or IV");
+  const plain = new Uint8Array(Math.ceil((payload.length + 4) / padTo) * padTo);
+  new DataView(plain.buffer).setUint32(0, payload.length);
+  plain.set(payload, 4);
+  const sealed = new Uint8Array(await subtle().encrypt({ name: "AES-GCM", iv }, await aes(key, "encrypt"), plain));
+  const id2 = new TextEncoder().encode(keyId);
+  const out = new Uint8Array(MAGIC.length + 1 + id2.length + 12 + sealed.length);
+  out.set(MAGIC);
+  out[4] = id2.length;
+  out.set(id2, 5);
+  out.set(iv, 5 + id2.length);
+  out.set(sealed, 17 + id2.length);
+  return out;
+}
+function keyIdOf(file2) {
+  if (file2.length < 5 || MAGIC.some((b, i) => file2[i] !== b)) return null;
+  const id2 = new TextDecoder().decode(file2.subarray(5, 5 + file2[4]));
+  return KEY_ID.test(id2) ? id2 : null;
+}
+async function unseal(file2, key) {
+  const id2 = keyIdOf(file2);
+  if (!id2) throw new Error("not a sealed file");
+  const at = 5 + file2[4];
+  const plain = new Uint8Array(await subtle().decrypt({ name: "AES-GCM", iv: file2.subarray(at, at + 12) }, await aes(key, "decrypt"), file2.subarray(at + 12)));
+  const length = new DataView(plain.buffer).getUint32(0);
+  if (length > plain.length - 4) throw new Error("bad sealed payload");
+  return plain.subarray(4, 4 + length);
+}
+
 // tools/herald/publisher.ts
 var PackError = class extends Error {
 };
+var sha5123 = (b) => createHash("sha512").update(b).digest("hex");
+var randomHex = (n) => [...crypto.getRandomValues(new Uint8Array(n))].map((b) => b.toString(16).padStart(2, "0")).join("");
 function listedFiles(feed) {
+  const stored = (f) => f.seal ? { path: f.path, sha512: f.seal.sha512, size: f.seal.size } : { path: f.path, sha512: f.sha512, size: f.size };
   return [
     ...feed.vaults.flatMap((v) => [v.file, ...v.image ? [v.image] : []]),
-    ...feed.news.flatMap((n) => n.imageFile?.path.startsWith("v2/images/") ? [n.imageFile] : []),
-    ...feed.backgrounds.flatMap((b) => b.image.path.startsWith("v2/images/") ? [b.image] : [])
+    ...feed.news.flatMap((n) => n.imageFile?.path.startsWith("v2/images/") ? [stored(n.imageFile)] : []),
+    ...feed.backgrounds.flatMap((b) => b.image.path.startsWith("v2/images/") ? [stored(b.image)] : [])
   ];
 }
-function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date(), read = () => null) {
+async function sealDocument(text, signingKey, runKey, files, sig) {
+  const doc = { doc: text, sig: sig ?? sign(null, Buffer.from(text), signingKey).toString("base64"), ...files ? { files } : {} };
+  return Buffer.from(await seal(new TextEncoder().encode(JSON.stringify(doc)), fromB64(runKey.key), runKey.id, 4096));
+}
+async function buildRelease(job, contentDir, key, now = /* @__PURE__ */ new Date(), read = () => null) {
   if (!/^[a-z0-9-]+$/.test(contentDir)) throw new Error(`bad content folder: ${contentDir}`);
-  if (job.schema === 2) return [...buildV2(job, contentDir, key, now), ...job.pack ? buildPack(job.pack, contentDir, key, read, now) : []];
+  if (job.schema === 2) {
+    const feed2 = await buildV2(job, contentDir, key, now);
+    const pack = await buildPack(job, contentDir, key, read, now);
+    return { writes: [...feed2, ...pack.writes], packSealed: pack.packSealed };
+  }
   const feed = FeedSchema.parse({ ...job.feed, schema: 1, sequence: job.sequence, updatedAt: now.toISOString() });
   const bytes = Buffer.from(JSON.stringify(feed, null, 2) + "\n");
-  return [
-    { path: `${contentDir}/feed.json`, bytes },
-    { path: `${contentDir}/feed.json.sig`, bytes: Buffer.from(sign(null, bytes, key).toString("base64") + "\n") }
-  ];
+  return {
+    writes: [
+      { path: `${contentDir}/feed.json`, bytes },
+      { path: `${contentDir}/feed.json.sig`, bytes: Buffer.from(sign(null, bytes, key).toString("base64") + "\n") }
+    ],
+    packSealed: false
+  };
 }
 var errorText = (err) => err && typeof err === "object" && "issues" in err && Array.isArray(err.issues) ? err.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join(" \xB7 ") : err instanceof Error ? err.message : String(err);
-function buildV2(job, contentDir, key, now) {
+async function buildV2(job, contentDir, key, now) {
+  if (!job.seal?.feed) throw new Error("no key to seal the feed");
   const feed = FeedV2Schema.parse({ ...job.feed, schema: 2, sequence: job.sequence, updatedAt: now.toISOString() });
-  const bytes = Buffer.from(JSON.stringify(feed, null, 2) + "\n");
-  const out = [
-    { path: `${contentDir}/${FEED_V2_PATH}`, bytes },
-    { path: `${contentDir}/${FEED_V2_PATH}.sig`, bytes: Buffer.from(sign(null, bytes, key).toString("base64") + "\n") }
-  ];
+  const out = [{ path: `${contentDir}/${FEED_V2_SEALED_PATH}`, bytes: await sealDocument(JSON.stringify(feed, null, 2) + "\n", key, job.seal.feed) }];
   const listed = listedFiles(feed);
   for (const f of job.files ?? []) {
     const entry = listed.find((l) => l.path === f.path);
     if (f.keep && entry && entry.sha512 === f.sha512) continue;
     const file2 = Buffer.from(f.b64 ?? "", "base64");
-    const sha = createHash("sha512").update(file2).digest("hex");
-    if (!entry || entry.sha512 !== sha || entry.size !== file2.length) throw new Error(`file ${f.path} is not listed in the feed as sent`);
+    if (!entry || entry.sha512 !== sha5123(file2) || entry.size !== file2.length) throw new Error(`file ${f.path} is not listed in the feed as sent`);
+    if (!f.path.endsWith(".bin")) throw new Error(`file ${f.path} is not sealed`);
     out.push({ path: `${contentDir}/${f.path}`, bytes: file2 });
   }
   for (const l of listed) if (!(job.files ?? []).some((f) => f.path === l.path)) throw new Error(`file ${l.path} is listed but missing from the job`);
   return out;
 }
-var sha5123 = (b) => createHash("sha512").update(b).digest("hex");
-function buildPack(pack, contentDir, key, read, now) {
+async function readIndex(contentDir, read, current) {
+  const sealed = read(`${contentDir}/index.bin`);
+  if (sealed) {
+    if (!current) throw new Error("the pack index is sealed but no key was given to read it");
+    const doc = JSON.parse(new TextDecoder().decode(await unseal(new Uint8Array(sealed), fromB64(current.key))));
+    return { text: doc.doc, sig: doc.sig, index: ContentIndexSchema.parse(JSON.parse(doc.doc)), files: doc.files ?? {}, sealed: true };
+  }
+  const clear = read(`${contentDir}/index.json`);
+  if (!clear) return null;
+  const sig = read(`${contentDir}/index.json.sig`)?.toString("utf8").trim() ?? "";
+  return { text: clear.toString("utf8"), sig, index: ContentIndexSchema.parse(JSON.parse(clear.toString("utf8"))), files: {}, sealed: false };
+}
+async function sealManifest(bytes) {
+  const k = crypto.getRandomValues(new Uint8Array(32));
+  const sealed = Buffer.from(await seal(bytes, k, "m", 4096));
+  const path = `clients/${randomHex(16)}.bin`;
+  return { path, bytes: sealed, entry: { path, key: toB64(k), sha512: sha5123(sealed), size: sealed.length } };
+}
+async function manifestOf(contentDir, read, files, logical) {
+  const f = files[logical];
+  if (f) {
+    const raw = read(`${contentDir}/${f.path}`);
+    return raw ? unseal(new Uint8Array(raw), fromB64(f.key)) : null;
+  }
+  return read(`${contentDir}/${logical}`);
+}
+async function buildPack(job, contentDir, key, read, now) {
+  const keys = job.seal?.pack;
+  const repo = await readIndex(contentDir, read, keys?.current ?? null);
+  const out = [];
+  const files = {};
+  const carry = async (ref) => {
+    if (repo?.files[ref.manifest]) return void (files[ref.manifest] = repo.files[ref.manifest]);
+    const plain = await manifestOf(contentDir, read, repo?.files ?? {}, ref.manifest);
+    if (!plain || sha5123(plain) !== ref.sha512) throw new PackError(`mod pack: ${ref.manifest} is missing or changed`);
+    const m2 = await sealManifest(plain);
+    out.push({ path: `${contentDir}/${m2.path}`, bytes: m2.bytes });
+    files[ref.manifest] = m2.entry;
+  };
+  if (!job.pack) {
+    if (!repo || repo.sealed || !keys?.next) return { writes: [], packSealed: false };
+    await carry(repo.index.latest);
+    if (repo.index.previous) await carry(repo.index.previous);
+    out.push({ path: `${contentDir}/index.bin`, bytes: await sealDocument(repo.text, key, keys.next, files, repo.sig) });
+    return { writes: out, packSealed: true };
+  }
   let manifest;
   try {
-    manifest = ClientManifestSchema.parse(pack.manifest);
+    manifest = ClientManifestSchema.parse(job.pack.manifest);
   } catch (err) {
     throw new PackError(`mod pack: ${errorText(err)}`);
   }
-  const base = PackBaseSchema.parse(pack.basedOn);
+  const base = PackBaseSchema.parse(job.pack.basedOn);
   const bytes = Buffer.from(manifestBytesText(manifest));
-  const rel = `clients/${manifest.clientVersion}/manifest.json`;
-  const indexRaw = read(`${contentDir}/index.json`);
-  const index = indexRaw ? ContentIndexSchema.parse(JSON.parse(indexRaw.toString("utf8"))) : null;
-  if (index && index.latest.sha512 === sha5123(bytes)) return [];
+  const index = repo?.index ?? null;
+  if (index && index.latest.sha512 === sha5123(bytes)) return { writes: [], packSealed: false };
   if (index && index.latest.sha512 !== base.sha512) throw new PackError(`mod pack: the online pack changed meanwhile (now ${index.latest.clientVersion}). Make the change again from it.`);
   if (index && compareVersions(manifest.clientVersion, index.latest.clientVersion) <= 0) throw new PackError(`mod pack: ${manifest.clientVersion} is not newer than ${index.latest.clientVersion}`);
-  if (read(`${contentDir}/${rel}`)) throw new PackError(`mod pack: ${manifest.clientVersion} was already published once. Use a new version number.`);
-  const out = [{ path: `${contentDir}/${rel}`, bytes }];
+  if (index?.previous?.clientVersion === manifest.clientVersion) throw new PackError(`mod pack: ${manifest.clientVersion} was already published once. Use a new version number.`);
+  if (!keys?.next) throw new Error("no key to seal the pack index");
   for (const f of manifest.files) {
-    if (!f.url.endsWith(`/${contentDir}/clients/${manifest.clientVersion}/files/${f.path}`)) throw new PackError(`mod pack: ${f.path} has a wrong address`);
-    const file2 = Buffer.from(pack.fileBytes?.[f.sha512] ?? "", "base64");
-    if (sha5123(file2) !== f.sha512 || file2.length !== f.size) throw new PackError(`mod pack: ${f.path} does not match the pack`);
-    out.push({ path: `${contentDir}/clients/${manifest.clientVersion}/files/${f.path}`, bytes: file2 });
+    const at = f.url.match(/\/clients\/files\/([0-9a-f]{32})\.bin$/);
+    const file2 = Buffer.from(job.pack.fileBytes?.[f.sha512] ?? "", "base64");
+    if (!f.seal || !at) throw new PackError(`mod pack: ${f.path} is not sealed`);
+    if (sha5123(file2) !== f.seal.sha512 || file2.length !== f.seal.size) throw new PackError(`mod pack: ${f.path} does not match the pack`);
+    out.push({ path: `${contentDir}/clients/files/${at[1]}.bin`, bytes: file2 });
   }
+  const rel = `clients/${manifest.clientVersion}/manifest.json`;
+  const m = await sealManifest(bytes);
+  out.push({ path: `${contentDir}/${m.path}`, bytes: m.bytes });
+  files[rel] = m.entry;
   const latest = { clientVersion: manifest.clientVersion, minecraft: manifest.minecraft, manifest: rel, sha512: sha5123(bytes), size: bytes.length };
+  const previous = index ? index.latest.clientVersion !== latest.clientVersion ? index.latest : index.previous : null;
+  if (previous) await carry(previous);
   const next = ContentIndexSchema.parse({
     schema: CONTENT_SCHEMA,
     // never lower than the pack it replaces (launchers refuse an older index), even when it was read elsewhere
     sequence: Math.max(index?.sequence ?? 0, base.sequence) + 1,
     updatedAt: now.toISOString(),
     latest,
-    previous: index ? index.latest.clientVersion !== latest.clientVersion ? index.latest : index.previous : null,
-    previousCanJoin: pack.previousCanJoin
+    previous,
+    previousCanJoin: job.pack.previousCanJoin
   });
-  const indexBytes = Buffer.from(JSON.stringify(next, null, 2) + "\n");
-  out.push({ path: `${contentDir}/index.json`, bytes: indexBytes }, { path: `${contentDir}/index.json.sig`, bytes: Buffer.from(sign(null, indexBytes, key).toString("base64") + "\n") });
-  return out;
+  out.push({ path: `${contentDir}/index.bin`, bytes: await sealDocument(JSON.stringify(next, null, 2) + "\n", key, keys.next, files) });
+  return { writes: out, packSealed: true };
 }
 function checkOnModrinth(manifest, versions) {
   const m = ClientManifestSchema.parse(manifest);
@@ -20163,13 +20264,24 @@ var env = (name) => {
 var server = env("HERALD_URL").replace(/\/$/, "");
 var call = async (path, body) => {
   const res = await fetch(server + path, { method: "POST", signal: AbortSignal.timeout(3e4), headers: { authorization: `Bearer ${env("PUBLISHER_TOKEN")}`, "content-type": "application/json" }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`Herald server ${path}: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`Herald server ${path}: HTTP ${res.status}`);
   return await res.json();
 };
+var fetchFile = async (path) => {
+  const res = await fetch(`${server}/internal/file/${path}`, { signal: AbortSignal.timeout(6e4), headers: { authorization: `Bearer ${env("PUBLISHER_TOKEN")}` } });
+  if (!res.ok) throw new Error(`Herald server: a file: HTTP ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+};
+function walk(root, dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).flatMap((name) => {
+    const full = join(dir, name);
+    return statSync(full).isDirectory() ? walk(root, full) : [relative(root, full).replace(/\\/g, "/")];
+  });
+}
 async function main() {
   const { job, contentDir } = await call("/internal/next", {});
-  if (!job) return console.log("Nothing to publish (already published by an earlier run).");
-  console.log(`Publishing ${job.id} as sequence ${job.sequence}`);
+  if (!job) return console.log("Nothing to publish.");
   try {
     const key = createPrivateKey({ key: Buffer.from(env("SIGNING_KEY"), "base64"), format: "der", type: "pkcs8" });
     const repo = process.env.HERALD_REPO_DIR ?? process.cwd();
@@ -20180,9 +20292,7 @@ async function main() {
         f.keep = true;
         continue;
       }
-      const res = await fetch(`${server}/internal/file/${f.path}`, { signal: AbortSignal.timeout(6e4), headers: { authorization: `Bearer ${env("PUBLISHER_TOKEN")}` } });
-      if (!res.ok) throw new Error(`Herald server: file ${f.path}: HTTP ${res.status}`);
-      f.b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+      f.b64 = (await fetchFile(f.path)).toString("base64");
     }
     if (job.pack) {
       const manifest = ClientManifestSchema.parse(job.pack.manifest);
@@ -20193,24 +20303,28 @@ async function main() {
       checkOnModrinth(manifest, versions);
       job.pack.fileBytes = {};
       for (const f of manifest.files) {
-        const res = await fetch(`${server}/internal/file/pack/${f.sha512.slice(0, 64)}.bin`, { signal: AbortSignal.timeout(6e4), headers: { authorization: `Bearer ${env("PUBLISHER_TOKEN")}` } });
-        if (!res.ok) throw new PackError(`mod pack: file ${f.path}: HTTP ${res.status}`);
-        job.pack.fileBytes[f.sha512] = Buffer.from(await res.arrayBuffer()).toString("base64");
+        try {
+          job.pack.fileBytes[f.sha512] = (await fetchFile(`pack/${f.sha512.slice(0, 64)}.bin`)).toString("base64");
+        } catch {
+          throw new PackError(`mod pack: file ${f.path} could not be fetched`);
+        }
       }
     }
     const read = (path) => existsSync(join(repo, path)) ? readFileSync(join(repo, path)) : null;
-    const files = buildRelease(job, contentDir, key, /* @__PURE__ */ new Date(), read);
-    for (const f of files) {
+    const release = await buildRelease(job, contentDir, key, /* @__PURE__ */ new Date(), read);
+    for (const f of release.writes) {
       mkdirSync(dirname(join(repo, f.path)), { recursive: true });
       writeFileSync(join(repo, f.path), f.bytes);
     }
+    const removed = job.schema === 2 ? walk(repo, join(repo, contentDir)).filter((p) => !p.endsWith(".bin")) : [];
     let commit = "local";
     if (process.env.HERALD_NO_GIT !== "1") {
       const git = (...args) => execFileSync("git", args, { cwd: repo, encoding: "utf8" }).trim();
       git("config", "user.name", "Herald Publisher");
       git("config", "user.email", "herald-publisher@users.noreply.github.com");
-      git("add", ...files.map((f) => f.path));
-      git("commit", "-q", "-m", `Herald: publish sequence ${job.sequence}${files.some((f) => f.path.endsWith("/index.json")) ? ` (mod pack ${ClientManifestSchema.parse(job.pack.manifest).clientVersion})` : ""}`);
+      if (removed.length) git("rm", "-q", "--", ...removed);
+      git("add", "--", ...release.writes.map((f) => f.path));
+      git("commit", "-q", "-m", "Herald publish");
       for (let attempt = 1; ; attempt++) {
         try {
           git("push", "-q", "origin", "HEAD");
@@ -20220,11 +20334,11 @@ async function main() {
         }
       }
       commit = git("rev-parse", "HEAD");
-    }
-    await call("/internal/done", { id: job.id, commit });
-    console.log(`Published sequence ${job.sequence} in ${commit}`);
+    } else for (const p of removed) execFileSync(process.platform === "win32" ? "cmd" : "rm", process.platform === "win32" ? ["/c", "del", join(repo, p)] : ["-f", join(repo, p)]);
+    await call("/internal/done", { id: job.id, commit, packSealed: release.packSealed });
+    console.log("Published.");
   } catch (err) {
-    console.error(`Refused: ${errorText(err)}`);
+    console.error("Refused: the reason is shown in Herald.");
     await call("/internal/failed", { id: job.id, error: errorText(err), ...err instanceof PackError ? { part: "pack" } : {} });
     process.exitCode = 1;
   }
