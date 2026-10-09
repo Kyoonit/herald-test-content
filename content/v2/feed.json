@@ -1,0 +1,67 @@
+{
+  "schema": 2,
+  "sequence": 30,
+  "updatedAt": "2026-10-09T06:13:16.408Z",
+  "news": [
+    {
+      "id": "herald-s3-visible",
+      "date": "2026-10-09",
+      "category": "server",
+      "title": {
+        "en": "Herald S3: visible now",
+        "fr": "Herald S3 : visible tout de suite"
+      },
+      "body": {
+        "en": "Test content (Herald phase S3)."
+      }
+    }
+  ],
+  "maintenances": [
+    {
+      "id": "herald-s3-maintenance",
+      "message": {
+        "en": "Test maintenance"
+      },
+      "announceFrom": "2026-10-09T06:12:09.515Z",
+      "start": "2026-10-11T06:13:09.515Z",
+      "end": "2026-10-11T08:13:09.515Z"
+    }
+  ],
+  "restart": {
+    "rules": [
+      {
+        "from": "2026-01-01T00:00:00Z",
+        "time": "17:00",
+        "timeZone": "Europe/Paris",
+        "durationMin": 5
+      }
+    ],
+    "exceptions": []
+  },
+  "events": [],
+  "banners": [
+    {
+      "id": "herald-s3-banner",
+      "text": {
+        "en": "Herald S3 test banner"
+      },
+      "level": "info"
+    }
+  ],
+  "welcome": [],
+  "backgrounds": [],
+  "vaults": [
+    {
+      "id": "v-1f5a32cd-8694-4c88",
+      "kind": "news",
+      "opensAt": "2026-10-09T06:18:00.000Z",
+      "file": {
+        "path": "v2/vaults/v-1f5a32cd-8694-4c88.bin",
+        "sha512": "982e82ea621055bb263577bb45c84c1a0b3a1786e2ab92a4dc5172cca7e710152ea7be75eed2090b493692861a9515dd69cff758e2af3f3aa3219c80dc0bf0c5",
+        "size": 303
+      },
+      "plainSha256": "5eced31e56a42cdbcf18aecfb1c23ffdeb2f80c9abc59ae2e7a6ecf02c90531c"
+    }
+  ],
+  "vaultKeys": {}
+}
