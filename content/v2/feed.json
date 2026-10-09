@@ -1,7 +1,7 @@
 {
   "schema": 2,
-  "sequence": 47,
-  "updatedAt": "2026-10-09T12:02:56.800Z",
+  "sequence": 48,
+  "updatedAt": "2026-10-09T12:15:20.033Z",
   "news": [],
   "maintenances": [
     {
@@ -75,25 +75,59 @@
           "durationMin": 120
         }
       }
+    },
+    {
+      "id": "e-nfqmeni5s4vj",
+      "title": {
+        "en": "Party (Herald test)"
+      },
+      "start": "2026-10-12T14:30:00.000Z",
+      "end": "2026-10-12T15:30:00.000Z",
+      "where": {
+        "en": "/warp party"
+      },
+      "link": {
+        "label": {
+          "en": "Rules"
+        },
+        "url": "https://hemispheresurvival.club/rules"
+      },
+      "showFrom": "2026-10-09T12:02:44.899Z"
     }
   ],
   "banners": [],
   "welcome": [],
-  "backgrounds": [],
-  "vaults": [
+  "backgrounds": [
     {
-      "id": "v-650fdffd-e788-4c3a",
-      "kind": "event",
-      "opensAt": "2026-10-09T12:02:44.899Z",
-      "file": {
-        "path": "v2/vaults/v-650fdffd-e788-4c3a.bin",
-        "sha512": "5b8fd738660d4b603865ea811f2f6ad824738d51c057f0c7ede2bb5239dd172a18791b6d5f172f370b7b2520760c06e33dfc82732a611d2b1e0be9be548967fd",
-        "size": 301
+      "id": "all-year-0-1cc423a6",
+      "name": {
+        "en": "Player bases (Herald test)"
       },
-      "plainSha256": "97f6f6d6b950465338a8ae2686803f3fd6027e46a9a7a97883a8b015a7f93925"
+      "image": {
+        "path": "v2/images/1cc423a69cb05f9b71a0221d3e4b1a77ec5c3d9ce6e428dafe0a4c67af1fec06.webp",
+        "sha512": "bf280123c7780bf6c6f84a2ce7eada5c716a3a7a8682761032d27bc3910824fdc2a83df341019e9a4a59d8649d3de989c02cd4d8982cb8ff7257f9040c7d8e5f",
+        "size": 97314
+      },
+      "mode": "add"
     }
   ],
-  "vaultKeys": {
-    "v-650fdffd-e788-4c3a": "9Zo2xJpJ3e0d2tyKTfx3W7ZtHbGM3P0c5rx/gIwMZHo="
-  }
+  "vaults": [
+    {
+      "id": "v-7840870e-70ed-45bc",
+      "kind": "background",
+      "opensAt": "2026-10-09T22:00:00.000Z",
+      "file": {
+        "path": "v2/vaults/v-7840870e-70ed-45bc.bin",
+        "sha512": "b2fe5b30c2e48cee0e5b896049fe9e7e5474fffa8d8c3ae20a844d63b43ff6135a2dcdff210dcd7593ced247d79f3122727fb4f5b0fbf637bb8f02ee54a5f010",
+        "size": 412
+      },
+      "plainSha256": "11a642fc3f1182727a0e654cdb32923ea5f0537dbba67bdb7bbd5f99bef8431c",
+      "image": {
+        "path": "v2/vaults/v-7840870e-70ed-45bc-img.bin",
+        "sha512": "1049c6fd10e42ed4d2541cb2aa59f516ed6183d2a9b95e60c9805557efeae919b5bcee519c80836d7226b980f606d0b0cda209d6ce8dfeb7f8b22f57343b4b2b",
+        "size": 331748
+      }
+    }
+  ],
+  "vaultKeys": {}
 }
